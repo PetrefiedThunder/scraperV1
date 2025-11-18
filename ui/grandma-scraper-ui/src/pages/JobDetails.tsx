@@ -2,11 +2,12 @@
  * Job details page with results and controls
  */
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router-dom';
 import { api } from '@/services/api';
 import { Layout } from '@/components/Layout';
+import { useWebSocket } from '@/hooks/useWebSocket';
 import type { ScrapeResult } from '@/types';
 
 export function JobDetails() {
@@ -27,7 +28,23 @@ export function JobDetails() {
     queryKey: ['results', jobId],
     queryFn: () => api.getJobResults(jobId!),
     enabled: !!jobId,
-    refetchInterval: 5000, // Poll every 5 seconds
+  });
+
+  // Real-time updates via WebSocket
+  const handleProgress = useCallback(() => {
+    // Invalidate and refetch results when progress is received
+    queryClient.invalidateQueries({ queryKey: ['results', jobId] });
+  }, [queryClient, jobId]);
+
+  const handleCompletion = useCallback(() => {
+    // Invalidate and refetch results when job completes
+    queryClient.invalidateQueries({ queryKey: ['results', jobId] });
+  }, [queryClient, jobId]);
+
+  useWebSocket({
+    onProgress: handleProgress,
+    onCompletion: handleCompletion,
+    enabled: true,
   });
 
   // Fetch selected result details

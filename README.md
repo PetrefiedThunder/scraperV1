@@ -44,6 +44,16 @@ GrandmaScraper is a web scraping tool designed with two audiences in mind:
 - ✅ **Database** - PostgreSQL with SQLAlchemy ORM
 - ✅ **Docker Support** - Full docker-compose setup
 
+### React Frontend (Phase 3 ✅)
+
+- ✅ **Visual Selector Picker** - Click on webpage elements to generate CSS selectors
+- ✅ **Job Wizard** - Multi-step form for creating scraping jobs
+- ✅ **Dashboard** - View and manage all your scraping jobs
+- ✅ **Real-time Updates** - WebSocket support for live progress tracking
+- ✅ **Template Gallery** - Pre-configured scrapers for common use cases
+- ✅ **Results Viewer** - Browse and download scraped data
+- ✅ **Modern UI** - React 18 + TypeScript + TailwindCSS
+
 ### For Developers
 
 - ✅ **Modular architecture** - Clean separation of concerns
@@ -141,17 +151,38 @@ async def main():
 result = asyncio.run(main())
 ```
 
-### API Backend (Phase 2)
+### Web UI (Phase 3 - Recommended for Non-Technical Users)
 
-**Start the API server:**
+**Start the full stack with Docker:**
 
 ```bash
-# Using Docker (recommended)
+# Start database, API, worker, and frontend
 docker-compose up -d
 
-# Or manually
-uvicorn grandma_scraper.api.main:app --reload
+# Visit the web UI
+open http://localhost:3000
 ```
+
+**Or run frontend separately:**
+
+```bash
+# Terminal 1: Start the API
+uvicorn grandma_scraper.api.main:app --reload
+
+# Terminal 2: Start the frontend
+cd ui/grandma-scraper-ui
+npm install
+npm run dev
+```
+
+**Web UI Features:**
+- 🎯 **Visual Selector Picker** - Point and click to select data
+- 📊 **Dashboard** - Manage all your scraping jobs
+- ⚡ **Real-time Progress** - Watch your scrapes happen live
+- 📥 **Download Results** - Export to JSON or CSV
+- 📅 **Schedule Jobs** - Set up recurring scrapes
+
+### API Backend (Phase 2)
 
 **Access API documentation:**
 - Interactive docs: http://localhost:8000/api/docs
