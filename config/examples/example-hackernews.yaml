@@ -1,0 +1,49 @@
+# Example scraper for Hacker News
+# Scrapes front page stories
+
+name: "Hacker News Front Page"
+description: "Scrape stories from Hacker News front page"
+enabled: true
+
+start_url: "https://news.ycombinator.com/"
+
+# Each story is in a tr.athing
+item_selector: "tr.athing"
+item_selector_type: "css"
+
+fields:
+  - name: "title"
+    selector: ".titleline > a"
+    selector_type: "css"
+    attribute: "text"
+    required: true
+
+  - name: "url"
+    selector: ".titleline > a"
+    selector_type: "css"
+    attribute: "href"
+    required: false
+
+  - name: "rank"
+    selector: ".rank"
+    selector_type: "css"
+    attribute: "text"
+    required: false
+
+# No pagination for this example (just front page)
+pagination:
+  type: "none"
+
+# Limits
+max_pages: 1
+max_items: 30  # Get top 30 stories
+
+# Settings
+fetcher_type: "requests"
+timeout_seconds: 30
+
+# Be very polite to HN
+min_delay_ms: 2000
+max_delay_ms: 4000
+concurrent_requests: 1
+respect_robots_txt: true
