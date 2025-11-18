@@ -1,6 +1,6 @@
 # 🕷️ GrandmaScraper
 
-> **A production-grade, grandma-friendly web scraping tool**
+> **A production-grade, grandma-friendly web scraping tool with REST API**
 
 Point-and-click simple on the surface, powerful under the hood.
 
@@ -22,26 +22,35 @@ GrandmaScraper is a web scraping tool designed with two audiences in mind:
 2. **Developers and power users** who need:
    - Production-grade scraping engine
    - Modular, tested architecture
-   - CLI automation
+   - CLI automation + REST API
    - Advanced configuration (pagination, rate limits, browser automation)
+   - Background job processing
 
 ## ✨ Features
 
-### For Everyone
+### Core Engine
 
 - ✅ **Simple CSV/Excel export** - Get your data in familiar formats
 - ✅ **Ethical scraping** - Respects robots.txt and rate limits
-- ✅ **Visual selector picking** - (Coming in Phase 2) Click elements to scrape them
 - ✅ **Progress tracking** - See what's happening in real-time
+- ✅ **Multiple backends** - Static (httpx) + Dynamic (Playwright)
+
+### API Backend (Phase 2 ✅)
+
+- ✅ **REST API** - FastAPI with OpenAPI docs
+- ✅ **Authentication** - JWT-based user authentication
+- ✅ **Job Management** - Create, update, delete, and run scraping jobs
+- ✅ **Background Tasks** - Celery for async job execution
+- ✅ **Database** - PostgreSQL with SQLAlchemy ORM
+- ✅ **Docker Support** - Full docker-compose setup
 
 ### For Developers
 
 - ✅ **Modular architecture** - Clean separation of concerns
-- ✅ **Multiple backends** - Static (httpx) + Dynamic (Playwright)
 - ✅ **Type safety** - Full Pydantic validation
 - ✅ **Async-first** - Built on asyncio for performance
-- ✅ **Comprehensive tests** - pytest with >80% coverage target
-- ✅ **CLI automation** - Integrate with CI/CD pipelines
+- ✅ **Comprehensive tests** - pytest with >80% coverage
+- ✅ **CLI + API** - Integrate with CI/CD pipelines
 
 ## 🚀 Quick Start
 
@@ -132,12 +141,54 @@ async def main():
 result = asyncio.run(main())
 ```
 
+### API Backend (Phase 2)
+
+**Start the API server:**
+
+```bash
+# Using Docker (recommended)
+docker-compose up -d
+
+# Or manually
+uvicorn grandma_scraper.api.main:app --reload
+```
+
+**Access API documentation:**
+- Interactive docs: http://localhost:8000/api/docs
+- Alternative docs: http://localhost:8000/api/redoc
+
+**Quick API Example:**
+
+```bash
+# Register a user
+curl -X POST http://localhost:8000/api/v1/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com","username":"user","password":"pass123"}'
+
+# Login and get token
+TOKEN=$(curl -X POST http://localhost:8000/api/v1/auth/token \
+  -d "username=user@example.com&password=pass123" | jq -r '.access_token')
+
+# Create a scraping job
+curl -X POST http://localhost:8000/api/v1/jobs/ \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d @job_config.json
+
+# Run the job
+curl -X POST http://localhost:8000/api/v1/jobs/{job_id}/run \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+See **[API Guide](docs/API_GUIDE.md)** for complete API documentation.
+
 ## 📖 Documentation
 
 - **[User Guide](docs/USER_GUIDE.md)** - Step-by-step tutorials for non-technical users
 - **[Developer Guide](docs/DEV_GUIDE.md)** - Architecture, testing, contributing
 - **[Architecture](docs/ARCHITECTURE.md)** - System design and module descriptions
 - **[Configuration Guide](docs/HOW_TO_ADD_NEW_SITES.md)** - Create custom scraper configs
+- **[API Guide](docs/API_GUIDE.md)** - REST API documentation
 
 ## 🛠️ CLI Commands
 
