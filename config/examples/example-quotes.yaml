@@ -1,0 +1,55 @@
+# Example scraper for http://quotes.toscrape.com
+# A simple quotes website designed for scraping practice
+
+name: "Quotes to Scrape - Example"
+description: "Scrape inspirational quotes from quotes.toscrape.com"
+enabled: true
+
+# Starting URL
+start_url: "http://quotes.toscrape.com/"
+
+# Container selector - each quote is in a .quote div
+item_selector: ".quote"
+item_selector_type: "css"
+
+# Fields to extract from each quote
+fields:
+  - name: "text"
+    selector: ".text"
+    selector_type: "css"
+    attribute: "text"
+    required: true
+
+  - name: "author"
+    selector: ".author"
+    selector_type: "css"
+    attribute: "text"
+    required: true
+
+  - name: "tags"
+    selector: ".tag"
+    selector_type: "css"
+    attribute: "text"
+    multiple: true  # Get all tags as a list
+
+# Pagination settings
+pagination:
+  type: "next_button"
+  next_button_selector: ".next > a"
+
+# Limits
+max_pages: 3  # Only scrape first 3 pages
+max_items: null  # No item limit
+
+# Fetcher settings
+fetcher_type: "requests"  # This site works with simple requests
+timeout_seconds: 30
+retry_count: 3
+
+# Politeness settings
+min_delay_ms: 500
+max_delay_ms: 1500
+concurrent_requests: 1
+
+# Respect robots.txt
+respect_robots_txt: true
