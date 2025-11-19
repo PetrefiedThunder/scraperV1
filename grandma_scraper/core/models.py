@@ -189,9 +189,18 @@ class ScrapeJob(BaseModel):
     @field_validator("start_url")
     @classmethod
     def validate_url(cls, v: str) -> str:
-        """Ensure URL has a scheme."""
+        """Ensure URL has a scheme and is safe from SSRF attacks."""
         if not v.startswith(("http://", "https://")):
             raise ValueError("URL must start with http:// or https://")
+
+        # Import here to avoid circular dependency
+        from grandma_scraper.utils.url_validator import validate_url_ssrf_strict, SSRFProtectionError
+
+        try:
+            validate_url_ssrf_strict(v)
+        except SSRFProtectionError as e:
+            raise ValueError(f"Unsafe URL blocked by SSRF protection: {str(e)}")
+
         return v
 
     @model_validator(mode="after")

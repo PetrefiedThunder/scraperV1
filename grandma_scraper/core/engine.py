@@ -25,6 +25,7 @@ from grandma_scraper.core.fetchers import (
 from grandma_scraper.core.extractors import DataExtractor, ExtractionError
 from grandma_scraper.utils.robots import RobotsChecker
 from grandma_scraper.utils.logger import get_logger
+from grandma_scraper.utils.url_validator import validate_url_ssrf_strict, SSRFProtectionError
 
 
 logger = get_logger(__name__)
@@ -169,6 +170,14 @@ class ScrapeEngine:
             url = urls_to_scrape.pop(0)
 
             try:
+                # Validate URL against SSRF attacks
+                try:
+                    validate_url_ssrf_strict(url)
+                except SSRFProtectionError as e:
+                    logger.error(f"SSRF protection blocked URL {url}: {str(e)}")
+                    self.result.add_warning(f"Skipped dangerous URL {url}: {str(e)}")
+                    continue
+
                 # Fetch page
                 logger.info(f"Fetching page {page_num}: {url}")
                 self._emit_progress(
