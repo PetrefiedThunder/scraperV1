@@ -144,10 +144,10 @@ class ScrapeJob(BaseModel):
 
     # Limits
     max_pages: Optional[int] = Field(
-        default=None, description="Maximum pages to scrape (None = unlimited)"
+        default=None, description="Maximum pages to scrape (None = unlimited)", ge=1, le=10000
     )
     max_items: Optional[int] = Field(
-        default=None, description="Maximum items to collect (None = unlimited)"
+        default=None, description="Maximum items to collect (None = unlimited)", ge=1, le=1000000
     )
     timeout_seconds: int = Field(
         default=30, description="Timeout for each page request", ge=1, le=300
