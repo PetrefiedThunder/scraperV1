@@ -9,6 +9,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from grandma_scraper.auth import (
     get_current_active_user,
@@ -60,15 +61,6 @@ async def update_current_user(
     Raises:
         HTTPException: If email already taken
     """
-    # Check if email is being changed and if it's already taken
-    if user_update.email and user_update.email != current_user.email:
-        existing_user = db.query(User).filter(User.email == user_update.email).first()
-        if existing_user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already registered",
-            )
-
     # Update fields
     if user_update.email:
         current_user.email = user_update.email
@@ -77,10 +69,17 @@ async def update_current_user(
     if user_update.password:
         current_user.hashed_password = get_password_hash(user_update.password)
 
-    db.commit()
-    db.refresh(current_user)
-
-    return current_user
+    try:
+        db.commit()
+        db.refresh(current_user)
+        return current_user
+    except IntegrityError:
+        # Database-level unique constraint violation (handles race condition)
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered",
+        )
 
 
 @router.get("/", response_model=List[UserResponse])
