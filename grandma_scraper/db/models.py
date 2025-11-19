@@ -6,13 +6,17 @@ Models:
 - ScrapeJobDB: Scraping job configurations
 - ScrapeResultDB: Scraping results
 - Schedule: Job scheduling information
+- Webhook: Webhook configurations for notifications
+- WebhookDelivery: Webhook delivery tracking
+
+All models include comprehensive indexes for query performance optimization.
 """
 
 from datetime import datetime
 from typing import Optional
 from uuid import UUID, uuid4
 
-from sqlalchemy import String, Boolean, DateTime, Text, Integer, ForeignKey, JSON, Enum as SQLEnum
+from sqlalchemy import String, Boolean, DateTime, Text, Integer, ForeignKey, JSON, Enum as SQLEnum, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 import enum
 
@@ -76,6 +80,16 @@ class User(Base):
     jobs: Mapped[list["ScrapeJobDB"]] = relationship(
         "ScrapeJobDB", back_populates="owner", cascade="all, delete-orphan"
     )
+    webhooks: Mapped[list["Webhook"]] = relationship(
+        "Webhook", back_populates="owner", cascade="all, delete-orphan"
+    )
+
+    # Indexes for common queries
+    __table_args__ = (
+        Index('idx_user_email_active', 'email', 'is_active'),
+        Index('idx_user_role', 'role'),
+        Index('idx_user_active', 'is_active'),
+    )
 
     def __repr__(self) -> str:
         return f"<User(id={self.id}, email={self.email})>"
@@ -126,6 +140,13 @@ class ScrapeJobDB(Base):
     )
     schedules: Mapped[list["Schedule"]] = relationship(
         "Schedule", back_populates="job", cascade="all, delete-orphan"
+    )
+
+    # Indexes for common queries
+    __table_args__ = (
+        Index('idx_job_owner_enabled', 'owner_id', 'enabled'),
+        Index('idx_job_enabled', 'enabled'),
+        Index('idx_job_created', 'created_at'),
     )
 
     def __repr__(self) -> str:
@@ -186,6 +207,17 @@ class ScrapeResultDB(Base):
 
     # Relationships
     job: Mapped[ScrapeJobDB] = relationship("ScrapeJobDB", back_populates="results")
+    webhook_deliveries: Mapped[list["WebhookDelivery"]] = relationship(
+        "WebhookDelivery", back_populates="result", cascade="all, delete-orphan"
+    )
+
+    # Indexes for common queries
+    __table_args__ = (
+        Index('idx_result_job_status', 'job_id', 'status'),
+        Index('idx_result_run_id', 'run_id'),
+        Index('idx_result_created', 'created_at'),
+        Index('idx_result_status_created', 'status', 'created_at'),
+    )
 
     def __repr__(self) -> str:
         return f"<ScrapeResultDB(id={self.id}, status={self.status})>"
@@ -234,5 +266,159 @@ class Schedule(Base):
     # Relationships
     job: Mapped[ScrapeJobDB] = relationship("ScrapeJobDB", back_populates="schedules")
 
+    # Indexes for common queries
+    __table_args__ = (
+        Index('idx_schedule_enabled_next_run', 'enabled', 'next_run'),
+        Index('idx_schedule_next_run', 'next_run'),
+    )
+
     def __repr__(self) -> str:
         return f"<Schedule(id={self.id}, cron={self.cron_expression})>"
+
+
+class WebhookEventType(str, enum.Enum):
+    """Webhook event types."""
+
+    JOB_COMPLETED = "job.completed"
+    JOB_FAILED = "job.failed"
+    JOB_STARTED = "job.started"
+    JOB_CANCELLED = "job.cancelled"
+
+
+class Webhook(Base):
+    """
+    Webhook configuration for job notifications.
+
+    Attributes:
+        id: Unique webhook ID (UUID)
+        owner_id: User who created this webhook
+        name: Webhook name/label
+        url: Webhook destination URL
+        enabled: Whether webhook is active
+        events: List of events to trigger on (JSON array)
+        secret: Optional secret for webhook signature verification
+        headers: Optional custom headers (JSON dict)
+        retry_on_failure: Whether to retry failed deliveries
+        max_retries: Maximum retry attempts
+        created_at: Webhook creation timestamp
+        updated_at: Last update timestamp
+        owner: Relationship to owning user
+        deliveries: Relationship to webhook deliveries
+    """
+
+    __tablename__ = "webhook"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    owner_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    url: Mapped[str] = mapped_column(String(2048), nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    # Events to trigger on
+    events: Mapped[list] = mapped_column(JSON, nullable=False)
+
+    # Security
+    secret: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+
+    # Custom headers (JSON dict)
+    headers: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+
+    # Retry configuration
+    retry_on_failure: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    max_retries: Mapped[int] = mapped_column(Integer, default=3, nullable=False)
+
+    # Timestamps
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+
+    # Relationships
+    owner: Mapped[User] = relationship("User", back_populates="webhooks")
+    deliveries: Mapped[list["WebhookDelivery"]] = relationship(
+        "WebhookDelivery", back_populates="webhook", cascade="all, delete-orphan"
+    )
+
+    # Indexes
+    __table_args__ = (
+        Index('idx_webhook_owner_enabled', 'owner_id', 'enabled'),
+        Index('idx_webhook_enabled', 'enabled'),
+    )
+
+    def __repr__(self) -> str:
+        return f"<Webhook(id={self.id}, url={self.url})>"
+
+
+class WebhookDeliveryStatus(str, enum.Enum):
+    """Webhook delivery status."""
+
+    PENDING = "pending"
+    DELIVERED = "delivered"
+    FAILED = "failed"
+    RETRYING = "retrying"
+
+
+class WebhookDelivery(Base):
+    """
+    Webhook delivery attempt record.
+
+    Attributes:
+        id: Unique delivery ID (UUID)
+        webhook_id: Foreign key to Webhook
+        result_id: Foreign key to ScrapeResultDB
+        event_type: Event that triggered the webhook
+        status: Delivery status
+        payload: Webhook payload sent (JSON)
+        response_status: HTTP status code from webhook endpoint
+        response_body: Response body (truncated)
+        error_message: Error message if failed
+        attempts: Number of delivery attempts
+        next_retry: Next retry time if applicable
+        delivered_at: When successfully delivered
+        created_at: Delivery creation timestamp
+        webhook: Relationship to webhook configuration
+        result: Relationship to scrape result
+    """
+
+    __tablename__ = "webhook_delivery"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    webhook_id: Mapped[UUID] = mapped_column(ForeignKey("webhook.id"), nullable=False, index=True)
+    result_id: Mapped[UUID] = mapped_column(ForeignKey("scraperesultdb.id"), nullable=False, index=True)
+
+    event_type: Mapped[WebhookEventType] = mapped_column(
+        SQLEnum(WebhookEventType), nullable=False
+    )
+
+    status: Mapped[WebhookDeliveryStatus] = mapped_column(
+        SQLEnum(WebhookDeliveryStatus), default=WebhookDeliveryStatus.PENDING, nullable=False
+    )
+
+    # Payload and response
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False)
+    response_status: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    response_body: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Retry tracking
+    attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    next_retry: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+
+    # Timestamps
+    delivered_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # Relationships
+    webhook: Mapped[Webhook] = relationship("Webhook", back_populates="deliveries")
+    result: Mapped[ScrapeResultDB] = relationship("ScrapeResultDB", back_populates="webhook_deliveries")
+
+    # Indexes
+    __table_args__ = (
+        Index('idx_delivery_webhook_status', 'webhook_id', 'status'),
+        Index('idx_delivery_status_next_retry', 'status', 'next_retry'),
+        Index('idx_delivery_created', 'created_at'),
+    )
+
+    def __repr__(self) -> str:
+        return f"<WebhookDelivery(id={self.id}, status={self.status})>"
