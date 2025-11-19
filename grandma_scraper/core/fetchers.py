@@ -16,6 +16,8 @@ import httpx
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright, Browser, Page, PlaywrightContextManager
 
+from grandma_scraper.utils.url_validator import validate_url_ssrf
+
 
 class HTMLDocument:
     """Wrapper around HTML content with parsing capabilities."""
@@ -119,9 +121,26 @@ class RequestsFetcher(HTMLFetcher):
     def client(self) -> httpx.AsyncClient:
         """Lazy-load HTTP client."""
         if self._client is None:
+            # Create event hooks for redirect validation
+            async def validate_redirect(response: httpx.Response):
+                """Validate redirect URLs against SSRF attacks."""
+                # Check if this is a redirect
+                if 300 <= response.status_code < 400:
+                    redirect_url = response.headers.get("location")
+                    if redirect_url:
+                        # Validate redirect URL
+                        is_valid, error_msg = validate_url_ssrf(redirect_url)
+                        if not is_valid:
+                            raise httpx.HTTPError(
+                                f"Blocked dangerous redirect to {redirect_url}: {error_msg}"
+                            )
+
+            event_hooks = {"response": [validate_redirect]} if self.follow_redirects else {}
+
             self._client = httpx.AsyncClient(
                 follow_redirects=self.follow_redirects,
                 timeout=self.timeout,
+                event_hooks=event_hooks,
             )
         return self._client
 
