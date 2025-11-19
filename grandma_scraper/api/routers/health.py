@@ -6,6 +6,7 @@ Provides system health and status information.
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 from pydantic import BaseModel
 
 from grandma_scraper import __version__
@@ -35,7 +36,7 @@ async def health_check(db: Session = Depends(get_db)) -> HealthResponse:
     """
     # Check database connection
     try:
-        db.execute("SELECT 1")
+        db.execute(text("SELECT 1"))
         db_status = "ok"
     except Exception:
         db_status = "error"
