@@ -8,6 +8,7 @@ Provides abstraction over different fetching strategies:
 
 import asyncio
 import random
+import logging
 from abc import ABC, abstractmethod
 from typing import Optional, List
 from urllib.parse import urlparse
@@ -15,6 +16,10 @@ from urllib.parse import urlparse
 import httpx
 from bs4 import BeautifulSoup
 from playwright.async_api import async_playwright, Browser, Page, PlaywrightContextManager
+
+from grandma_scraper.utils.retry import exponential_backoff
+
+logger = logging.getLogger(__name__)
 
 
 class HTMLDocument:
@@ -125,9 +130,14 @@ class RequestsFetcher(HTMLFetcher):
             )
         return self._client
 
+    @exponential_backoff(
+        max_retries=3,
+        base_delay=2.0,
+        exceptions=(httpx.HTTPError, httpx.TimeoutException, httpx.NetworkError)
+    )
     async def fetch(self, url: str) -> HTMLDocument:
         """
-        Fetch HTML using HTTP request.
+        Fetch HTML using HTTP request with automatic retry on failure.
 
         Args:
             url: URL to fetch
@@ -136,7 +146,7 @@ class RequestsFetcher(HTMLFetcher):
             HTMLDocument with page content
 
         Raises:
-            httpx.HTTPError: If request fails
+            httpx.HTTPError: If request fails after all retries
         """
         headers = {
             "User-Agent": self._get_random_user_agent(),
@@ -148,8 +158,11 @@ class RequestsFetcher(HTMLFetcher):
             "Upgrade-Insecure-Requests": "1",
         }
 
+        logger.debug(f"Fetching URL: {url}")
         response = await self.client.get(url, headers=headers)
         response.raise_for_status()
+
+        logger.info(f"Successfully fetched {url} ({response.status_code})")
 
         return HTMLDocument(
             url=str(response.url),
@@ -209,9 +222,14 @@ class BrowserFetcher(HTMLFetcher):
             )
         return self._browser
 
+    @exponential_backoff(
+        max_retries=2,
+        base_delay=3.0,
+        exceptions=(Exception,)  # Catch all browser errors
+    )
     async def fetch(self, url: str) -> HTMLDocument:
         """
-        Fetch HTML using browser automation.
+        Fetch HTML using browser automation with automatic retry.
 
         Args:
             url: URL to fetch
@@ -220,7 +238,7 @@ class BrowserFetcher(HTMLFetcher):
             HTMLDocument with page content (after JS execution)
 
         Raises:
-            Exception: If browser navigation fails
+            Exception: If browser navigation fails after all retries
         """
         browser = await self._ensure_browser()
 
@@ -242,7 +260,9 @@ class BrowserFetcher(HTMLFetcher):
         page = await context.new_page()
 
         try:
-            # Navigate to page
+            logger.debug(f"Fetching URL with browser: {url}")
+
+            # Navigate to page with timeout
             response = await page.goto(
                 url, wait_until=self.wait_until, timeout=self.timeout * 1000
             )
@@ -253,6 +273,8 @@ class BrowserFetcher(HTMLFetcher):
             # Get HTML after JavaScript execution
             html = await page.content()
             status_code = response.status
+
+            logger.info(f"Successfully fetched {url} with browser ({status_code})")
 
             return HTMLDocument(url=page.url, html=html, status_code=status_code)
 
