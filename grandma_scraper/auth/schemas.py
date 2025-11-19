@@ -36,7 +36,7 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     """User creation request."""
 
-    password: str = Field(..., min_length=8, max_length=100)
+    password: str = Field(..., min_length=8, max_length=72)
 
 
 class UserUpdate(BaseModel):
@@ -44,7 +44,7 @@ class UserUpdate(BaseModel):
 
     email: Optional[EmailStr] = None
     username: Optional[str] = Field(None, min_length=1, max_length=100)
-    password: Optional[str] = Field(None, min_length=8, max_length=100)
+    password: Optional[str] = Field(None, min_length=8, max_length=72)
     is_active: Optional[bool] = None
 
 

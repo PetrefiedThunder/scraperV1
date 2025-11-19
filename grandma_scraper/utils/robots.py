@@ -11,6 +11,8 @@ from urllib.robotparser import RobotFileParser
 
 import httpx
 
+from grandma_scraper.utils.url_validator import validate_url_ssrf
+
 
 class RobotsChecker:
     """
@@ -76,6 +78,13 @@ class RobotsChecker:
 
             # Fetch robots.txt
             robots_url = urljoin(domain, "/robots.txt")
+
+            # Validate robots.txt URL against SSRF
+            is_valid, error_msg = validate_url_ssrf(robots_url)
+            if not is_valid:
+                # Treat invalid robots.txt URL as no robots.txt
+                self._cache[domain] = None
+                return None
 
             try:
                 async with httpx.AsyncClient(timeout=10.0) as client:

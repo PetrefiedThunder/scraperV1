@@ -143,10 +143,25 @@ async def export_result_csv(
         fieldnames.update(item.keys())
     fieldnames = sorted(fieldnames)
 
+    # Sanitize items to prevent CSV injection
+    def sanitize_csv_value(value):
+        """Sanitize value to prevent CSV injection attacks."""
+        if not isinstance(value, str):
+            return value
+        # If value starts with dangerous characters, prefix with single quote
+        if value and value[0] in ('=', '+', '-', '@', '\t', '\r'):
+            return "'" + value
+        return value
+
+    sanitized_items = []
+    for item in result.items:
+        sanitized_item = {k: sanitize_csv_value(v) for k, v in item.items()}
+        sanitized_items.append(sanitized_item)
+
     # Write CSV
     writer = csv.DictWriter(output, fieldnames=fieldnames)
     writer.writeheader()
-    writer.writerows(result.items)
+    writer.writerows(sanitized_items)
 
     csv_content = output.getvalue()
 

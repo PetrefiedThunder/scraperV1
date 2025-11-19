@@ -5,7 +5,7 @@ These models define the structure of scraping configurations, results, and relat
 All models use Pydantic for validation and serialization.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Literal
 from uuid import UUID, uuid4
@@ -144,10 +144,10 @@ class ScrapeJob(BaseModel):
 
     # Limits
     max_pages: Optional[int] = Field(
-        default=None, description="Maximum pages to scrape (None = unlimited)"
+        default=None, description="Maximum pages to scrape (None = unlimited)", ge=1, le=10000
     )
     max_items: Optional[int] = Field(
-        default=None, description="Maximum items to collect (None = unlimited)"
+        default=None, description="Maximum items to collect (None = unlimited)", ge=1, le=1000000
     )
     timeout_seconds: int = Field(
         default=30, description="Timeout for each page request", ge=1, le=300
@@ -183,15 +183,24 @@ class ScrapeJob(BaseModel):
     )
 
     # Metadata
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     @field_validator("start_url")
     @classmethod
     def validate_url(cls, v: str) -> str:
-        """Ensure URL has a scheme."""
+        """Ensure URL has a scheme and is safe from SSRF attacks."""
         if not v.startswith(("http://", "https://")):
             raise ValueError("URL must start with http:// or https://")
+
+        # Import here to avoid circular dependency
+        from grandma_scraper.utils.url_validator import validate_url_ssrf_strict, SSRFProtectionError
+
+        try:
+            validate_url_ssrf_strict(v)
+        except SSRFProtectionError as e:
+            raise ValueError(f"Unsafe URL blocked by SSRF protection: {str(e)}")
+
         return v
 
     @model_validator(mode="after")
@@ -245,12 +254,12 @@ class ScrapeResult(BaseModel):
     def mark_started(self) -> None:
         """Mark the scrape as started."""
         self.status = ScrapeStatus.RUNNING
-        self.started_at = datetime.now()
+        self.started_at = datetime.now(timezone.utc)
 
     def mark_completed(self) -> None:
         """Mark the scrape as completed successfully."""
         self.status = ScrapeStatus.COMPLETED
-        self.completed_at = datetime.now()
+        self.completed_at = datetime.now(timezone.utc)
         if self.started_at:
             self.duration_seconds = (self.completed_at - self.started_at).total_seconds()
         self.total_items = len(self.items)
@@ -258,7 +267,7 @@ class ScrapeResult(BaseModel):
     def mark_failed(self, error: str, details: Optional[Dict[str, Any]] = None) -> None:
         """Mark the scrape as failed."""
         self.status = ScrapeStatus.FAILED
-        self.completed_at = datetime.now()
+        self.completed_at = datetime.now(timezone.utc)
         if self.started_at:
             self.duration_seconds = (self.completed_at - self.started_at).total_seconds()
         self.error_message = error

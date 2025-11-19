@@ -12,12 +12,16 @@ class AuthSettings(BaseSettings):
     """Authentication configuration settings."""
 
     # JWT settings
-    secret_key: str = os.getenv(
-        "SECRET_KEY",
-        "your-secret-key-change-this-in-production-make-it-long-and-random",
-    )
+    secret_key: str
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        if not self.secret_key or len(self.secret_key) < 32:
+            raise ValueError(
+                "SECRET_KEY environment variable must be set and at least 32 characters long"
+            )
 
     class Config:
         env_file = ".env"

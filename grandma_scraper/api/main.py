@@ -4,6 +4,7 @@ Main FastAPI application.
 Creates and configures the FastAPI app with all routes and middleware.
 """
 
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
@@ -44,13 +45,20 @@ def create_app() -> FastAPI:
         openapi_url="/api/openapi.json",
     )
 
-    # Configure CORS
+    # Configure CORS - get allowed origins from environment variable
+    allowed_origins_str = os.getenv("ALLOWED_ORIGINS", "")
+    allowed_origins = [origin.strip() for origin in allowed_origins_str.split(",") if origin.strip()]
+
+    # If no origins specified, deny all cross-origin requests (most secure default)
+    if not allowed_origins:
+        allowed_origins = []
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # Configure based on environment in production
+        allow_origins=allowed_origins,
         allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["Content-Type", "Authorization"],
     )
 
     # Include routers

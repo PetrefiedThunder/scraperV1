@@ -85,12 +85,18 @@ async def _run_scrape_async(job_id: str, result_id: str) -> None:
     except Exception as e:
         logger.error(f"Scrape job failed: {str(e)}", exc_info=True)
 
-        # Mark as failed
-        result_db = db.query(ScrapeResultDB).filter(ScrapeResultDB.id == result_uuid).first()
-        if result_db:
-            result_db.status = JobStatus.FAILED
-            result_db.error_message = str(e)
-            db.commit()
+        # Mark as failed - safely handle case where result_db might not exist
+        try:
+            result_db = db.query(ScrapeResultDB).filter(ScrapeResultDB.id == result_uuid).first()
+            if result_db:
+                result_db.status = JobStatus.FAILED
+                result_db.error_message = str(e)
+                db.commit()
+            else:
+                logger.error(f"Result record not found for result_id={result_id}")
+        except Exception as update_error:
+            logger.error(f"Failed to update result status: {str(update_error)}", exc_info=True)
+            db.rollback()
 
     finally:
         db.close()
