@@ -9,6 +9,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
+from pydantic import ValidationError
 
 from grandma_scraper.auth import get_current_active_user
 from grandma_scraper.api.schemas import JobCreate, JobUpdate, JobResponse
@@ -44,7 +45,14 @@ async def create_job(
     # Validate config by trying to create a ScrapeJob
     try:
         ScrapeJob(**job_data.config)
-    except Exception as e:
+    except ValidationError as e:
+        # Pydantic validation errors - return detailed error information
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid job configuration: {e.errors()}",
+        )
+    except (ValueError, TypeError) as e:
+        # Other validation errors from custom validators
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid job configuration: {str(e)}",
@@ -175,7 +183,14 @@ async def update_job(
     if job_update.config:
         try:
             ScrapeJob(**job_update.config)
-        except Exception as e:
+        except ValidationError as e:
+            # Pydantic validation errors - return detailed error information
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid job configuration: {e.errors()}",
+            )
+        except (ValueError, TypeError) as e:
+            # Other validation errors from custom validators
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid job configuration: {str(e)}",
