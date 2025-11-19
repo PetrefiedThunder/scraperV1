@@ -7,6 +7,7 @@ Handles user login and token generation.
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 
 from grandma_scraper.auth import (
     create_access_token,
@@ -76,16 +77,7 @@ async def register(
     Raises:
         HTTPException: If email already registered
     """
-    # Check if user already exists
-    existing_user = db.query(User).filter(User.email == user_data.email).first()
-
-    if existing_user:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered",
-        )
-
-    # Create new user
+    # Create new user with hashed password
     hashed_password = get_password_hash(user_data.password)
 
     new_user = User(
@@ -94,8 +86,15 @@ async def register(
         hashed_password=hashed_password,
     )
 
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-
-    return new_user
+    try:
+        db.add(new_user)
+        db.commit()
+        db.refresh(new_user)
+        return new_user
+    except IntegrityError:
+        # Database-level unique constraint violation (handles race condition)
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email already registered",
+        )
