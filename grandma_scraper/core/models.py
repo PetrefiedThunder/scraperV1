@@ -5,7 +5,7 @@ These models define the structure of scraping configurations, results, and relat
 All models use Pydantic for validation and serialization.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Dict, List, Optional, Literal
 from uuid import UUID, uuid4
@@ -183,8 +183,8 @@ class ScrapeJob(BaseModel):
     )
 
     # Metadata
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
     @field_validator("start_url")
     @classmethod
@@ -245,12 +245,12 @@ class ScrapeResult(BaseModel):
     def mark_started(self) -> None:
         """Mark the scrape as started."""
         self.status = ScrapeStatus.RUNNING
-        self.started_at = datetime.now()
+        self.started_at = datetime.now(timezone.utc)
 
     def mark_completed(self) -> None:
         """Mark the scrape as completed successfully."""
         self.status = ScrapeStatus.COMPLETED
-        self.completed_at = datetime.now()
+        self.completed_at = datetime.now(timezone.utc)
         if self.started_at:
             self.duration_seconds = (self.completed_at - self.started_at).total_seconds()
         self.total_items = len(self.items)
@@ -258,7 +258,7 @@ class ScrapeResult(BaseModel):
     def mark_failed(self, error: str, details: Optional[Dict[str, Any]] = None) -> None:
         """Mark the scrape as failed."""
         self.status = ScrapeStatus.FAILED
-        self.completed_at = datetime.now()
+        self.completed_at = datetime.now(timezone.utc)
         if self.started_at:
             self.duration_seconds = (self.completed_at - self.started_at).total_seconds()
         self.error_message = error
