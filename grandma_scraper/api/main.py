@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
 from grandma_scraper import __version__
-from grandma_scraper.api.routers import auth, jobs, results, users, health
+from grandma_scraper.api.routers import auth, jobs, results, users, health, websocket
 from grandma_scraper.db import Base, engine
 
 
@@ -59,6 +59,7 @@ def create_app() -> FastAPI:
     app.include_router(users.router, prefix="/api/v1/users", tags=["Users"])
     app.include_router(jobs.router, prefix="/api/v1/jobs", tags=["Jobs"])
     app.include_router(results.router, prefix="/api/v1/results", tags=["Results"])
+    app.include_router(websocket.router, prefix="/api/v1", tags=["WebSocket"])
 
     return app
 
